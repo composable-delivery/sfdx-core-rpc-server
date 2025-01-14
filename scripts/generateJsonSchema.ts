@@ -24,5 +24,5 @@ const schema = {
   required: ['endpoints'],
 };
 
-writeFileSync('rpcSchema.json', JSON.stringify(schema, null, 2));
+writeFileSync('rpcSchema.json', JSON.stringify(rpcConfig, null, 2));
 console.log('JSON schema generated successfully');

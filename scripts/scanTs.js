@@ -1,13 +1,15 @@
 const fs = require('fs');
 const path = require('path');
-const { Project, SyntaxKind, CallExpression } = require('ts-morph');
+const { Project, SyntaxKind } = require('ts-morph');
 
 const SRC_DIR = path.join(__dirname, '..', 'src');
 const project = new Project({
   tsConfigFilePath: path.join(__dirname, 'tsconfig.json'),
 });
 
-let detected = false;
+const endpointConfig = {
+  endpoints: {},
+};
 
 const scanDirectory = (dir) => {
   const files = fs.readdirSync(dir);
@@ -22,29 +24,27 @@ const scanDirectory = (dir) => {
   });
 };
 
-// This function will detect all the usages of fs.read* and send warnings with the location of the usage
 const analyzeFile = (filePath) => {
   const srcFile = project.addSourceFileAtPath(filePath);
-  const funcCalls = srcFile.getDescendantsOfKind(SyntaxKind.CallExpression);
+  const funcDeclarations = srcFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration);
 
-  funcCalls.forEach((callExpression) => {
-    const exp = callExpression.getExpression();
-    if (exp.getText().startsWith('fs.read')) {
-      detected = true;
-      console.warn(
-        `Warning: Usage of "${exp.getText()}" in file "${filePath}" at line ${callExpression.getStartLineNumber()}.\n`
-      );
+  funcDeclarations.forEach((funcDeclaration) => {
+    const funcName = funcDeclaration.getName();
+    const params = funcDeclaration.getParameters().map((param) => param.getName());
+
+    if (funcName) {
+      endpointConfig.endpoints[`/${funcName}`] = {
+        method: funcName,
+        params,
+      };
     }
   });
 };
 
 scanDirectory(SRC_DIR);
 
-if (detected) {
-  console.log('The warnings above do not mean the usages are wrong.');
-  console.log(`Avoid reading local artifacts with "fs.read*" since esbuild cannot bundle the artifacts together.`);
-  console.log('Consider using import instead or reach out to IDEx Foundations team');
-}
+fs.writeFileSync('endpointConfig.json', JSON.stringify(endpointConfig, null, 2));
+console.log('Endpoint configurations generated successfully');
 
 const { resolvePinoLogger } = require('./bundlingUtils');
 resolvePinoLogger(false);
